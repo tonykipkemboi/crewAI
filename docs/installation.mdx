@@ -7,12 +7,23 @@ icon: wrench
 <Note>
   **Python Version Requirements**
   
-  CrewAI requires `Python >=3.10 and <=3.12`. Here's how to check your version:
+  CrewAI requires `Python >=3.10 and <=3.13`. Here's how to check your version:
   ```bash
   python3 --version
   ```
+  **Important**: If you have `Python 3.13` as the global version, installation will fail due to 
+  dependency issues related to `tiktoken`. To ensure compatibility, set the environment variable 
+  `PYO3_USE_ABI3_FORWARD_COMPATIBILITY` to `"1"` to attempt to enable compatibility with newer Python 
+  versions (like 3.13 in this case). Run the following command before CrewAI installation commands:
 
-  Make sure you don't have `Python 3.13` as the global version. When you run `crewai install` it will use the global version.
+  - On Windows (PowerShell):
+  ```bash
+  $env:PYO3_USE_ABI3_FORWARD_COMPATIBILITY = "1"
+  ```
+  - On Linux/macOS (Bash):
+  ```bash
+  export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
+  ```
   
   If you need to update Python, visit [python.org/downloads](https://python.org/downloads)
 </Note>
