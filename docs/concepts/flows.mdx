@@ -353,7 +353,7 @@ class MyFlow(Flow[MyState]):
 
     @listen(initialize_flow)
     def next_step(self):
-        # The state (including self.state.id) is automatically reloaded
+        # Reload state by providing its ID to kickoff()
         self.state.counter += 1
         print("Flow state is persisted. Counter:", self.state.counter)
 ```
@@ -394,7 +394,7 @@ class AnotherFlow(Flow[dict]):
 
 - **State Types**: Both structured (Pydantic BaseModel) and unstructured (dictionary) states are supported
 - **Automatic ID**: The `id` field is automatically added if not present
-- **State Recovery**: Failed or restarted flows can automatically reload their previous state
+- **State Recovery**: Reload a previous state by passing its `id` to `kickoff()`
 - **Custom Implementation**: You can provide your own FlowPersistence implementation for specialized storage needs
 
 ### Technical Advantages
@@ -406,7 +406,7 @@ class AnotherFlow(Flow[dict]):
    - Full visibility into state changes and persistence operations
 
 2. **Enhanced Reliability**
-   - Automatic state recovery after system failures or restarts
+   - State recovery after failures by providing the saved `id`
    - Transaction-based state updates for data integrity
    - Comprehensive error handling with clear error messages
    - Robust validation during state save and load operations
