@@ -311,11 +311,18 @@ flow1 = PersistentCounterFlow()
 result1 = flow1.kickoff()
 print(f"First run result: {result1}")
 
-# Second run - state is automatically loaded
+# Save the state's ID to reload it later
+saved_id = flow1.state.id
+
+# Second run - load the previously saved state
 flow2 = PersistentCounterFlow()
-result2 = flow2.kickoff()
+result2 = flow2.kickoff(inputs={"id": saved_id})
 print(f"Second run result: {result2}")  # Will be higher due to persisted state
 ```
+
+In this example, we capture the state's unique ID after the first run and
+provide it to `kickoff()` on the second run. Without passing this ID, the flow
+would start with a new, empty state.
 
 #### Method-Level Persistence
 
