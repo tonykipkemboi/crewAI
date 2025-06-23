@@ -1,0 +1,708 @@
+---
+title: "Arcade Tool"
+description: "Integrate your CrewAI agents with 100+ third-party tools through Arcade's unified API platform"
+icon: "gamepad-modern"
+---
+
+The Arcade Tool allows your CrewAI agents to seamlessly integrate with 100+ third-party tools and services through Arcade's unified API platform. From Google Workspace and Slack to GitHub and social media platforms, Arcade provides authenticated access to a vast ecosystem of tools.
+
+## **Installation**
+
+```bash
+pip install crewai-arcade
+```
+
+## **Setup**
+
+### **Prerequisites**
+1. **Arcade API Key**: Sign up at [arcade.dev](https://arcade.dev) to get your API key
+2. **LLM API Key**: Required for agent functionality (OpenAI, Anthropic, Google, etc.)
+
+### **Environment Variables**
+
+You can set your API keys using environment variables or a `.env` file (recommended):
+
+**Option 1: Using .env file (Recommended)**
+```bash
+# .env
+ARCADE_API_KEY=your_arcade_api_key_here
+
+# Choose your preferred LLM provider
+OPENAI_API_KEY=your_openai_api_key_here
+# or ANTHROPIC_API_KEY=your_anthropic_api_key_here
+# or GEMINI_API_KEY=your_gemini_api_key_here
+# or any other supported LLM provider
+```
+
+**Option 2: Using export commands**
+```bash
+export ARCADE_API_KEY="your_arcade_api_key_here"
+export OPENAI_API_KEY="your_openai_api_key_here"  # or your preferred LLM provider
+```
+
+## **Basic Usage**
+
+### **Quick Start Example**
+
+Here's a simple example to get you started with Arcade tools in CrewAI:
+
+```python
+#!/usr/bin/env python
+"""
+Simple Arcade integration example for CrewAI
+"""
+import os
+from crewai import Agent, Task, Crew, Process
+from crewai_arcade import ArcadeToolManager
+from crewai.llm import LLM
+
+def main():
+    # Step 1: Initialize Arcade Tool Manager
+    print("🎮 Setting up Arcade tools...")
+    manager = ArcadeToolManager(default_user_id="user@example.com")
+    
+    # Step 2: Get specific tools you need
+    # This example uses Google Gmail and Slack tools
+    tools = manager.get_tools(
+        tools=["Google.ListEmails"],  # Specific Google tool
+        toolkits=["Slack"]            # All Slack tools
+    )
+    print(f"📦 Loaded {len(tools)} tools from Arcade")
+
+    # Step 3: Create your AI agent
+    email_assistant = Agent(
+        role="Email Assistant",
+        goal="Help manage and organize email communications effectively",
+        backstory="""You are a helpful email assistant who can read emails, 
+        summarize important messages, and coordinate with team members via Slack.""",
+        tools=tools,
+        llm=LLM(model="gpt-4o-mini"),  # Use any supported LLM: gpt-4o, claude-3-5-sonnet, gemini-pro, etc.
+        verbose=True
+    )
+
+    # Step 4: Define the task
+    email_task = Task(
+        description="""
+        1. Check my latest emails from today
+        2. Identify any urgent or important messages
+        3. Summarize the key points and action items
+        4. If there are urgent items, notify the team via Slack
+        """,
+        expected_output="""
+        A clear summary containing:
+        - Number of emails reviewed
+        - List of important/urgent emails with sender and subject
+        - Key action items that need attention
+        - Confirmation if team was notified via Slack
+        """,
+        agent=email_assistant
+    )
+
+    # Step 5: Create and run the crew
+    crew = Crew(
+        agents=[email_assistant],
+        tasks=[email_task],
+        process=Process.sequential,
+        verbose=True
+    )
+
+    print("\n🚀 Starting email management task...")
+    result = crew.kickoff()
+    
+    print("\n✅ Task completed!")
+    print("📋 Results:")
+    print(result)
+
+if __name__ == "__main__":
+    main()
+```
+
+**To run this example:**
+
+1. Create a new Python file (e.g., `arcade_example.py`)
+2. Add your API keys to `.env` file
+3. Install dependencies: `pip install crewai crewai-arcade`
+4. Run: `python arcade_example.py`
+
+⚠️ **First-time setup**: You'll need to authorize tools when prompted. The script will show authorization URLs in the console.
+
+## **Custom Authentication Flow**
+
+For production applications or when you need more control over the authorization process, implement a custom authentication flow:
+
+```python
+#!/usr/bin/env python
+"""
+Advanced Arcade integration with custom authentication flow
+"""
+import time
+from typing import Any
+from crewai import Agent, Task, Crew, Process
+from crewai_arcade import ArcadeToolManager
+from crewai.llm import LLM
+
+class AdvancedArcadeManager:
+    """Enhanced Arcade manager with custom authentication handling"""
+    
+    def __init__(self, user_id: str = "user@example.com"):
+        self.user_id = user_id
+        self.manager = ArcadeToolManager(executor=self._tool_executor)
+        
+    def _custom_auth_flow(self, manager: ArcadeToolManager, tool_name: str, **tool_input: dict[str, Any]) -> Any:
+        """Enhanced authentication flow with better UX"""
+        print(f"\n🔐 Checking authorization for {tool_name}...")
+        
+        # Check current authorization status
+        auth_response = manager.authorize(tool_name, self.user_id)
+
+        if not manager.is_authorized(auth_response.id):
+            print(f"⚠️  Tool '{tool_name}' requires authorization")
+            print(f"🌐 Please visit: {auth_response.url}")
+            print("📱 Complete the authorization in your browser")
+            print("⏳ Waiting for authorization (this may take a moment)...")
+            
+            # Wait for authorization with timeout
+            start_time = time.time()
+            timeout = 300  # 5 minutes
+            
+            while time.time() - start_time < timeout:
+                auth_response = manager.wait_for_auth(auth_response)
+                if manager.is_authorized(auth_response.id):
+                    print(f"✅ Successfully authorized {tool_name}")
+                    return
+                time.sleep(2)
+            
+            raise TimeoutError(f"❌ Authorization timeout for {tool_name}")
+        else:
+            print(f"✅ {tool_name} already authorized")
+
+    def _tool_executor(self, tool_manager: ArcadeToolManager, tool_name: str, **tool_input: dict[str, Any]) -> Any:
+        """Execute tool with custom auth flow"""
+        self._custom_auth_flow(tool_manager, tool_name, **tool_input)
+        return tool_manager.execute_tool(self.user_id, tool_name, **tool_input)
+    
+    def get_tools(self, tools: list[str] = None, toolkits: list[str] = None):
+        """Get tools with error handling"""
+        try:
+            return self.manager.get_tools(tools=tools, toolkits=toolkits)
+        except Exception as e:
+            print(f"❌ Error loading tools: {e}")
+            return []
+
+def main():
+    # Initialize advanced manager
+    arcade_manager = AdvancedArcadeManager(user_id="user@example.com")
+    
+    # Load tools for comprehensive workflow automation
+    tools = arcade_manager.get_tools(
+        tools=["Google.ListEmails", "Google.SendEmail", "Google.CreateEvent"],
+        toolkits=["Slack", "GitHub"]
+    )
+    
+    if not tools:
+        print("❌ No tools loaded. Please check your Arcade API key.")
+        return
+
+    # Create executive assistant agent
+    executive_assistant = Agent(
+        role="Executive Assistant",
+        goal="Streamline communications and automate workflows across platforms",
+        backstory="""You are an experienced executive assistant with access to 
+        email, calendar, messaging, and development tools. You excel at managing 
+        communications, scheduling, and coordinating with development teams.""",
+        tools=tools,
+        llm=LLM(model="gpt-4o"),  # Use any supported LLM provider
+        verbose=True
+    )
+
+    # Define comprehensive workflow task
+    workflow_task = Task(
+        description="""
+        Daily workflow automation:
+        1. Review today's emails and categorize by importance
+        2. Check for any meeting requests and schedule appropriately  
+        3. Look for any urgent GitHub notifications or mentions
+        4. Send a brief status update to the team via Slack
+        5. Create calendar events for any follow-ups needed
+        """,
+        expected_output="""
+        A comprehensive daily report including:
+        - Email summary with categorization (urgent/normal/low priority)
+        - Calendar events created or updated
+        - GitHub activity summary
+        - Slack communication sent
+        - List of follow-up actions scheduled
+        """,
+        agent=executive_assistant
+    )
+
+    # Execute the workflow
+    crew = Crew(
+        agents=[executive_assistant],
+        tasks=[workflow_task],
+        process=Process.sequential,
+        verbose=True
+    )
+
+    print("\n🚀 Starting daily workflow automation...")
+    try:
+        result = crew.kickoff()
+        print("\n✅ Workflow completed successfully!")
+        print("📊 Results:")
+        print(result)
+    except Exception as e:
+        print(f"\n❌ Workflow failed: {e}")
+
+if __name__ == "__main__":
+    main()
+```
+
+**Key improvements in this advanced example:**
+
+- **Better error handling**: Timeout management and graceful failures
+- **Enhanced UX**: Clear progress indicators and status messages  
+- **Production-ready**: Proper class structure and modular design
+- **Comprehensive workflow**: Real-world executive assistant scenario
+
+## **Available Tools & Toolkits**
+
+Arcade provides access to 100+ tools across various categories:
+
+### **Communication & Productivity**
+- **Google**: Gmail, Google Drive, Google Calendar, Google Sheets
+- **Slack**: Send messages, manage channels, get user info
+- **Microsoft**: Outlook, Teams, OneDrive, Office 365
+- **Notion**: Database operations, page management
+
+### **Development & DevOps**
+- **GitHub**: Repository management, issue tracking, pull requests
+- **GitLab**: Project management, CI/CD operations
+- **Jira**: Issue tracking, project management
+- **Docker**: Container management
+
+### **Social Media & Marketing**
+- **Twitter**: Tweet management, analytics
+- **LinkedIn**: Profile management, posting
+- **Instagram**: Content management
+- **Facebook**: Page management, posting
+
+### **E-commerce & Finance**
+- **Shopify**: Store management, order processing
+- **Stripe**: Payment processing, customer management
+- **QuickBooks**: Financial management
+- **PayPal**: Transaction management
+
+## **Best Practices**
+
+### **Tool Selection**
+```python
+# Be specific about which tools you need
+tools = manager.get_tools(
+    tools=["Google.ListEmails", "Google.SendEmail"],  # Specific tools
+    toolkits=["Slack"]  # Entire toolkit
+)
+
+# Avoid loading too many tools at once
+# This can overwhelm the agent and cause confusion
+```
+
+### **Authorization Management**
+```python
+# Check authorization status before execution
+def check_tool_auth(manager: ArcadeToolManager, tool_names: list[str], user_id: str):
+    """Check which tools need authorization"""
+    needs_auth = []
+    
+    for tool_name in tool_names:
+        auth_response = manager.authorize(tool_name, user_id)
+        if not manager.is_authorized(auth_response.id):
+            needs_auth.append((tool_name, auth_response.url))
+    
+    return needs_auth
+
+# Use in your workflow
+unauth_tools = check_tool_auth(manager, ["Google.ListEmails", "Slack.SendMessage"], USER_ID)
+if unauth_tools:
+    print("Please authorize these tools:")
+    for tool_name, auth_url in unauth_tools:
+        print(f"- {tool_name}: {auth_url}")
+```
+
+### **Error Handling**
+```python
+def robust_tool_execution(manager: ArcadeToolManager, tool_name: str, user_id: str, **kwargs):
+    """Execute tool with comprehensive error handling"""
+    try:
+        # Check authorization first
+        auth_response = manager.authorize(tool_name, user_id)
+        if not manager.is_authorized(auth_response.id):
+            return {"error": f"Tool {tool_name} requires authorization: {auth_response.url}"}
+        
+        # Execute tool
+        result = manager.execute_tool(user_id, tool_name, **kwargs)
+        return {"success": True, "data": result}
+        
+    except Exception as e:
+        return {"error": f"Tool execution failed: {str(e)}"}
+```
+
+## **Complete Use Case Examples**
+
+### **Email Management Assistant**
+
+A comprehensive email management system that handles daily email tasks:
+
+```python
+#!/usr/bin/env python
+"""
+Email Management Assistant using Arcade tools with CrewAI
+"""
+from crewai import Agent, Task, Crew, Process
+from crewai_arcade import ArcadeToolManager
+from crewai.llm import LLM
+
+def create_email_management_crew():
+    """Create a complete email management crew"""
+    
+    # Initialize Arcade manager
+    manager = ArcadeToolManager(default_user_id="user@example.com")
+    
+    # Get email and calendar tools
+    tools = manager.get_tools(
+        tools=[
+            "Google.ListEmails", 
+            "Google.SendEmail", 
+            "Google.CreateEvent",
+            "Google.MarkEmailAsRead"
+        ]
+    )
+    
+    # Email Manager Agent
+    email_manager = Agent(
+        role="Email Manager",
+        goal="Efficiently process and organize daily email communications",
+        backstory="""You are an experienced executive assistant specializing in 
+        email management. You excel at prioritizing emails, drafting professional 
+        responses, and organizing follow-up actions.""",
+        tools=tools,
+        llm=LLM(model="gpt-4o-mini"),
+        verbose=True
+    )
+    
+    # Email Processing Task
+    email_task = Task(
+        description="""
+        Daily email management workflow:
+        1. List and review all unread emails from the last 24 hours
+        2. Categorize emails by priority (urgent, important, routine, spam)
+        3. For urgent emails: draft immediate responses
+        4. For important emails: create calendar reminders for follow-up
+        5. Mark processed emails as read
+        6. Generate a summary report of actions taken
+        """,
+        expected_output="""
+        Email Management Report:
+        - Total emails processed: [number]
+        - Urgent emails: [number] (with draft responses)
+        - Important emails: [number] (with follow-up scheduled)
+        - Routine emails: [number] (marked as read)
+        - Spam/irrelevant: [number] (handled)
+        - Calendar events created: [number]
+        - Summary of key action items
+        """,
+        agent=email_manager
+    )
+    
+    # Create and return crew
+    return Crew(
+        agents=[email_manager],
+        tasks=[email_task],
+        process=Process.sequential,
+        verbose=True
+    )
+
+# Run the email management system
+if __name__ == "__main__":
+    crew = create_email_management_crew()
+    result = crew.kickoff()
+    print(result)
+```
+
+### **LinkedIn Professional Network Manager**
+
+A focused LinkedIn automation system that delivers real business value:
+
+```python
+#!/usr/bin/env python
+"""
+LinkedIn Professional Network Manager using Arcade tools with CrewAI
+"""
+from crewai import Agent, Task, Crew, Process
+from crewai_arcade import ArcadeToolManager
+from crewai.llm import LLM
+
+def create_linkedin_crew():
+    """Create a comprehensive LinkedIn management crew"""
+    
+    # Initialize Arcade with LinkedIn tools
+    manager = ArcadeToolManager(default_user_id="professional@company.com")
+    
+    # Get LinkedIn toolkit - proven to work well with Arcade
+    tools = manager.get_tools(toolkits=["LinkedIn"])
+    
+    if not tools:
+        print("❌ LinkedIn tools not available. Check your Arcade API key.")
+        return None
+    
+    print(f"✅ Loaded {len(tools)} LinkedIn tools")
+    
+    # LinkedIn Growth Manager Agent
+    linkedin_manager = Agent(
+        role="LinkedIn Professional Growth Manager", 
+        goal="Build professional network, increase engagement, and establish thought leadership",
+        backstory="""You are an expert LinkedIn strategist who understands professional 
+        networking, B2B content creation, and thought leadership. You excel at creating 
+        valuable content that resonates with professional audiences and drives meaningful 
+        business connections.""",
+        tools=tools,
+        llm=LLM(model="gpt-4o"),  # Use any supported LLM provider
+        verbose=True
+    )
+    
+    # Comprehensive LinkedIn Management Task
+    linkedin_task = Task(
+        description="""
+        Execute a strategic LinkedIn growth and engagement workflow:
+        
+        1. NETWORK ANALYSIS:
+           - Check connection requests and messages
+           - Review recent activity from your network
+           - Identify industry leaders and potential connections
+           
+        2. CONTENT STRATEGY:
+           - Create 1 thought leadership post about industry trends
+           - Share 1 valuable insight or professional tip
+           - Comment meaningfully on 3-5 posts from your network
+           
+        3. ENGAGEMENT & OUTREACH:
+           - Respond to comments on your recent posts
+           - Send personalized connection requests to relevant professionals
+           - Engage authentically with industry discussions
+           
+        4. GROWTH ANALYTICS:
+           - Track profile views and connection growth
+           - Identify top-performing content themes
+           - Plan content calendar for the week
+        """,
+        expected_output="""
+        LinkedIn Professional Growth Report:
+        
+        🔗 NETWORK EXPANSION:
+        - New connections made: [number]
+        - Connection requests sent: [number with personalized messages]
+        - Messages responded to: [number]
+        - Profile views: [current count and recent growth]
+        
+        📝 CONTENT PERFORMANCE:
+        - Posts published: [number with topics]
+        - Comments received: [number]
+        - Likes and reactions: [total engagement]
+        - Reach and impressions: [if available]
+        
+        💬 ENGAGEMENT ACTIVITIES:
+        - Comments left on others' posts: [number]
+        - Meaningful conversations started: [number]
+        - Industry discussions joined: [topics]
+        
+        📈 STRATEGIC INSIGHTS:
+        - Trending professional topics: [list]
+        - High-engagement content types: [what works best]
+        - Recommended posting schedule: [optimal times]
+        - Target audience insights: [who engages most]
+        
+        📅 NEXT WEEK PLANNING:
+        - Content topics planned: [3-5 post ideas]
+        - Follow-up actions: [connections to nurture]
+        - Goals for next period: [growth targets]
+        """,
+        agent=linkedin_manager
+    )
+    
+    return Crew(
+        agents=[linkedin_manager],
+        tasks=[linkedin_task],
+        process=Process.sequential,
+        verbose=True
+    )
+
+def main():
+    """Run the LinkedIn management system"""
+    print("🔗 Starting LinkedIn Professional Network Manager")
+    print("=" * 50)
+    
+    # Create and run the LinkedIn crew
+    crew = create_linkedin_crew()
+    
+    if crew:
+        print("🚀 Executing LinkedIn growth strategy...")
+        try:
+            result = crew.kickoff()
+            print("\n✅ LinkedIn management completed!")
+            print("📊 Results:")
+            print("=" * 50)
+            print(result)
+        except Exception as e:
+            print(f"❌ Error during execution: {e}")
+    else:
+        print("❌ Failed to create LinkedIn crew")
+
+if __name__ == "__main__":
+    main()
+```
+
+**Why this LinkedIn example works so well:**
+
+- **🎯 Focused Strategy**: Concentrates on LinkedIn's unique professional networking value
+- **💼 Business Impact**: Drives real network growth and thought leadership
+- **⚡ Proven Results**: Based on successful testing with Arcade's LinkedIn integration  
+- **🔄 Sustainable Growth**: Creates repeatable workflows for consistent engagement
+- **📈 Measurable Outcomes**: Tracks meaningful professional metrics
+
+**To run this example:**
+1. Ensure LinkedIn tools are authorized in Arcade
+2. Save as `linkedin_manager.py`
+3. Run: `python linkedin_manager.py`
+
+This example demonstrates how CrewAI + Arcade can automate professional networking while maintaining authenticity and value.
+
+### **Developer Productivity Assistant**
+
+An assistant that helps with development workflow automation:
+
+```python
+#!/usr/bin/env python
+"""
+Developer Productivity Assistant using Arcade tools with CrewAI
+"""
+from crewai import Agent, Task, Crew, Process
+from crewai_arcade import ArcadeToolManager
+from crewai.llm import LLM
+
+def create_dev_assistant_crew():
+    """Create a developer productivity assistant crew"""
+    
+    # Initialize with development tools
+    manager = ArcadeToolManager(default_user_id="developer@company.com")
+    
+    # Get development and communication tools
+    tools = manager.get_tools(
+        toolkits=["GitHub", "Slack"],
+        tools=["Google.ListEmails"]
+    )
+    
+    # Dev Assistant Agent
+    dev_assistant = Agent(
+        role="Developer Productivity Assistant",
+        goal="Streamline development workflow and team communication",
+        backstory="""You are an AI assistant specialized in developer productivity. 
+        You help manage GitHub repositories, coordinate with team members, and 
+        automate routine development tasks.""",
+        tools=tools,
+        llm=LLM(model="gpt-4o"),  # Use any supported LLM provider
+        verbose=True
+    )
+    
+    # Development Workflow Task
+    dev_task = Task(
+        description="""
+        Daily development workflow management:
+        1. Check GitHub for new pull requests, issues, and mentions
+        2. Review code review requests and provide status updates
+        3. Check team communication channels for urgent developer requests
+        4. Identify blockers or urgent issues that need attention
+        5. Send daily standup summary to the team
+        6. Update project documentation if needed
+        """,
+        expected_output="""
+        Development Workflow Report:
+        - Pull requests reviewed: [number]
+        - New issues identified: [number with priorities]
+        - Code reviews completed: [number]
+        - Team notifications sent: [number]
+        - Blockers identified: [list with severity]
+        - Documentation updates: [list of changes]
+        - Next actions recommended: [prioritized list]
+        """,
+        agent=dev_assistant
+    )
+    
+    return Crew(
+        agents=[dev_assistant],
+        tasks=[dev_task],
+        process=Process.sequential,
+        verbose=True
+    )
+
+# Run the developer assistant
+if __name__ == "__main__":
+    crew = create_dev_assistant_crew()
+    result = crew.kickoff()
+    print(result)
+```
+
+## **Configuration Options**
+
+### **ArcadeToolManager Parameters**
+- `default_user_id`: Default user ID for tool execution
+- `executor`: Custom execution function for tools
+- `api_key`: Arcade API key (can also use environment variable)
+
+### **Tool Filtering**
+```python
+# Get all available tools
+all_tools = manager.get_all_tools()
+
+# Filter tools by category
+email_tools = [tool for tool in all_tools if 'email' in tool.name.lower()]
+
+# Get tools from specific providers
+google_tools = manager.get_tools(toolkits=["Google"])
+slack_tools = manager.get_tools(toolkits=["Slack"])
+```
+
+## **Troubleshooting**
+
+### **Common Issues**
+
+**Authorization Failures**
+- Ensure you visit the authorization URL provided in the console
+- Check that your Arcade API key is valid and has the necessary permissions
+- Some tools may require additional setup in their respective platforms
+
+**Tool Conflicts**
+- Avoid loading similar tools that might conflict (e.g., multiple email tools)
+- Be specific about which tools you need rather than loading entire toolkits
+
+**Rate Limiting**
+- Some integrated services have rate limits
+- Implement appropriate delays and error handling
+- Consider batching operations when possible
+
+**Environment Variables**
+```bash
+# Verify your environment variables are set
+echo $ARCADE_API_KEY
+echo $OPENAI_API_KEY # or $ANTHROPIC_API_KEY, $GEMINI_API_KEY, etc.
+
+# Or check your .env file
+cat .env | grep -E "(ARCADE_API_KEY|OPENAI_API_KEY)"
+```
+
+## **Next Steps**
+
+1. **Explore Available Tools**: Check Arcade's documentation for the full list of supported tools
+2. **Custom Integrations**: Work with Arcade to add custom tools for your specific needs  
+3. **Workflow Automation**: Combine multiple tools to create powerful automation workflows
+4. **Enterprise Features**: Contact Arcade for enterprise-grade features and support
+
+For more advanced usage and the latest tool additions, visit the [Arcade documentation](https://docs.arcade.dev).

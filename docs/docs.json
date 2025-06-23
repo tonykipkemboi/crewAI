@@ -191,6 +191,7 @@
                 "group": "Automation & Integration",
                 "pages": [
                   "tools/automation/overview",
+                  "tools/automation/arcadetool",
                   "tools/automation/apifyactorstool",
                   "tools/automation/composiotool",
                   "tools/automation/multiontool"

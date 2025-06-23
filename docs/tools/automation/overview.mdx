@@ -9,6 +9,10 @@ These tools enable your agents to automate workflows, integrate with external pl
 ## **Available Tools**
 
 <CardGroup cols={2}>
+  <Card title="Arcade Tool" icon="gamepad-modern" href="/tools/automation/arcadetool">
+    Access 100+ third-party tools and services through Arcade's unified API platform.
+  </Card>
+
   <Card title="Apify Actor Tool" icon="spider" href="/tools/automation/apifyactorstool">
     Run Apify actors for web scraping and automation tasks.
   </Card>
@@ -32,8 +36,11 @@ These tools enable your agents to automate workflows, integrate with external pl
 
 ```python
 from crewai_tools import ApifyActorTool, ComposioTool, MultiOnTool
+from crewai_arcade import ArcadeToolManager
 
 # Create automation tools
+arcade_manager = ArcadeToolManager(default_user_id="user@example.com")
+arcade_tools = arcade_manager.get_tools(toolkits=["Slack", "Google"])
 apify_automation = ApifyActorTool()
 platform_integration = ComposioTool()
 browser_automation = MultiOnTool()
@@ -41,7 +48,7 @@ browser_automation = MultiOnTool()
 # Add to your agent
 agent = Agent(
     role="Automation Specialist",
-    tools=[apify_automation, platform_integration, browser_automation],
+    tools=[*arcade_tools, apify_automation, platform_integration, browser_automation],
     goal="Automate workflows and integrate systems"
 )
 ```
